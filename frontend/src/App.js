@@ -1,7 +1,7 @@
 /**
  * StudySphere - Smart Study Partner with Agora Conversational AI
  * HackFest GDG New Delhi - LA-01 Track
- * 
+ *
  * Features:
  * - Agora RTC Voice Integration for conversational AI
  * - Web Speech API for speech-to-text recognition
@@ -19,7 +19,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 
-const EXTERNAL_BACKEND = 'https://studysphere-c3jet4vgr4gooj9g8vq5tm.streamlit.app';
+// <-- UPDATED BACKEND BASE URL (Render) -->
+const BACKEND_BASE = 'https://studysphere-pr1v.onrender.com';
 
 function App() {
   const [messages, setMessages] = useState([
@@ -33,13 +34,13 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Agora Voice Mode States
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [agoraClient, setAgoraClient] = useState(null);
-  
+
   const recognitionRef = useRef(null);
   const scrollAreaRef = useRef(null);
 
@@ -91,7 +92,7 @@ function App() {
     try {
       // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // Initialize Agora client if available
       if (window.AgoraRTC && !agoraClient) {
         const client = initializeAgoraClient();
@@ -115,7 +116,7 @@ function App() {
     toast.info('Voice Mode deactivated');
   };
 
-  // Start Recording Voice
+  // Start Recording Voice (Web Speech API fallback)
   const startRecording = () => {
     if (!voiceSupported) {
       toast.error('Speech recognition not supported');
@@ -137,7 +138,7 @@ function App() {
     recognition.onresult = async (event) => {
       const transcript = event.results[0][0].transcript;
       console.log('Recognized text:', transcript);
-      
+
       // Add user voice message to chat
       const voiceMessage = {
         id: Date.now(),
@@ -147,19 +148,19 @@ function App() {
         isVoice: true
       };
       setMessages(prev => [...prev, voiceMessage]);
-      
+
       // Send to backend
       setIsLoading(true);
       try {
         const responseData = await sendMessageToBackend(transcript);
-        
+
         const aiMessage = {
           id: Date.now() + 1,
           type: 'ai',
-          text: responseData.text || responseData.response || JSON.stringify(responseData),
+          text: responseData.text || responseData.answer || JSON.stringify(responseData),
           timestamp: new Date()
         };
-        
+
         setMessages(prev => [...prev, aiMessage]);
         toast.success('Voice message processed!');
       } catch (error) {
@@ -180,7 +181,7 @@ function App() {
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setIsRecording(false);
-      
+
       let errorMsg = 'Voice recognition failed';
       if (event.error === 'no-speech') {
         errorMsg = 'No speech detected. Please try again.';
@@ -202,7 +203,11 @@ function App() {
   // Stop Recording
   const stopRecording = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.warn('Error stopping recognition', e);
+      }
       setIsRecording(false);
     }
   };
@@ -218,24 +223,30 @@ function App() {
     }
   };
 
+  // ==== CORE: sendMessageToBackend uses new /ask endpoint ====
   const sendMessageToBackend = async (question) => {
     try {
-      const response = await axios.post(EXTERNAL_BACKEND, {
-        question: question
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
+      // POST to /ask endpoint
+      const url = `${BACKEND_BASE}/ask`;
+      const response = await axios.post(url, { question }, {
+        headers: { 'Content-Type': 'application/json' },
         timeout: 30000
       });
-      
-      return response.data;
+
+      // Render backend returns { answer: "..." }
+      if (response && response.data) {
+        return { text: response.data.answer || response.data.answer || JSON.stringify(response.data) };
+      } else {
+        throw new Error('Empty response from backend');
+      }
     } catch (error) {
       console.error('Backend error:', error);
+      // rethrow to be handled by caller
       throw error;
     }
   };
 
+  // User clicked Send (text)
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -252,14 +263,14 @@ function App() {
 
     try {
       const responseData = await sendMessageToBackend(inputMessage);
-      
+
       const aiMessage = {
         id: Date.now() + 1,
         type: 'ai',
-        text: responseData.text || responseData.response || JSON.stringify(responseData),
+        text: responseData.text || responseData.answer || JSON.stringify(responseData),
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       const errorMessage = {
@@ -275,30 +286,39 @@ function App() {
     }
   };
 
+  // Test Me -> Quiz
   const handleTestMe = async () => {
     setIsLoading(true);
-    
+
     const testMessage = {
       id: Date.now(),
       type: 'user',
       text: 'Test Me - Generate quiz questions',
       timestamp: new Date()
     };
-    
+
     setMessages(prev => [...prev, testMessage]);
 
     try {
-      const responseData = await sendMessageToBackend('Generate 3 multiple-choice quiz questions from my notes.');
-      
-      const aiMessage = {
-        id: Date.now() + 1,
-        type: 'ai',
-        text: responseData.text || responseData.response || JSON.stringify(responseData),
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
+      const url = `${BACKEND_BASE}/quiz`;
+      const response = await axios.post(url, {}, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 45000
+      });
+
+      if (response && response.data) {
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          text: response.data.answer || JSON.stringify(response.data),
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      } else {
+        throw new Error('Empty quiz response');
+      }
     } catch (error) {
+      console.error('Quiz generation error:', error);
       const errorMessage = {
         id: Date.now() + 1,
         type: 'ai',
@@ -319,6 +339,23 @@ function App() {
     }
   };
 
+  // auto-scroll whenever messages change
+  useEffect(() => {
+    try {
+      if (scrollAreaRef && scrollAreaRef.current) {
+        const el = scrollAreaRef.current;
+        // if using a ScrollArea component with a custom API, call its scroll method if available
+        if (el.scrollTo) {
+          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
+      }
+    } catch (e) {
+      // ignore scroll errors
+    }
+  }, [messages, isLoading]);
+
   return (
     <div className="app-container" data-testid="app-container">
       {/* Left Panel */}
@@ -337,10 +374,10 @@ function App() {
             <Upload className="upload-icon" />
             <h3 className="upload-title">Upload Study Materials</h3>
             <p className="upload-description">Upload your PDF notes to get started</p>
-            
+
             <label htmlFor="pdf-upload">
-              <Button 
-                className="upload-button" 
+              <Button
+                className="upload-button"
                 data-testid="upload-button"
                 onClick={() => document.getElementById('pdf-upload').click()}
                 type="button"
@@ -357,7 +394,7 @@ function App() {
               className="hidden"
               data-testid="pdf-input"
             />
-            
+
             {uploadedFile && (
               <div className="uploaded-file" data-testid="uploaded-file">
                 <FileText className="w-4 h-4" />
@@ -369,7 +406,7 @@ function App() {
           {/* Voice Mode Button (Agora) */}
           <div className="voice-mode-section">
             {!isVoiceMode ? (
-              <Button 
+              <Button
                 className="voice-mode-button"
                 onClick={startVoiceMode}
                 disabled={!voiceSupported}
@@ -380,7 +417,7 @@ function App() {
               </Button>
             ) : (
               <div className="voice-active-controls">
-                <Button 
+                <Button
                   className="voice-mode-button active"
                   onClick={stopVoiceMode}
                   data-testid="stop-voice-mode-button"
@@ -388,9 +425,9 @@ function App() {
                   <MicOff className="w-4 h-4 mr-2" />
                   Stop Voice Mode
                 </Button>
-                
+
                 {!isRecording ? (
-                  <Button 
+                  <Button
                     className="record-button"
                     onClick={startRecording}
                     data-testid="start-recording-button"
@@ -409,8 +446,8 @@ function App() {
           </div>
 
           {/* Test Me Button */}
-          <Button 
-            className="test-button" 
+          <Button
+            className="test-button"
             onClick={handleTestMe}
             disabled={isLoading}
             data-testid="test-me-button"
@@ -450,9 +487,9 @@ function App() {
                 <div className={`message-bubble ${message.type} ${message.isVoice ? 'voice-message' : ''}`}>
                   <p className="message-text">{message.text}</p>
                   <span className="message-time">
-                    {message.timestamp.toLocaleTimeString('en-US', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
+                    {message.timestamp.toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit'
                     })}
                   </span>
                 </div>
@@ -483,8 +520,8 @@ function App() {
             className="chat-input"
             data-testid="chat-input"
           />
-          <Button 
-            onClick={handleSendMessage} 
+          <Button
+            onClick={handleSendMessage}
             disabled={isLoading || !inputMessage.trim()}
             className="send-button"
             data-testid="send-button"
