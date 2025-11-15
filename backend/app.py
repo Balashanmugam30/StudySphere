@@ -17,6 +17,21 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 
+def extract_answer(result):
+    """Safely extract model response"""
+    choices = result.get("choices")
+    if not choices:
+        return f"DeepSeek Error: {result}"
+    
+    message = choices[0].get("message", {})
+    content = message.get("content")
+
+    if not content:
+        return f"DeepSeek Error: {result}"
+
+    return content
+
+
 @app.post("/ask")
 async def ask_ai(payload: dict):
     question = payload.get("question", "")
@@ -38,8 +53,7 @@ async def ask_ai(payload: dict):
         response = requests.post(DEEPSEEK_URL, json=data, headers=headers)
         result = response.json()
 
-        # DeepSeek returns: result["choices"][0]["message"]["content"]
-        answer = result["choices"][0]["message"]["content"]
+        answer = extract_answer(result)
         return {"answer": answer}
 
     except Exception as e:
@@ -70,8 +84,8 @@ async def generate_quiz(payload: dict = None):
     try:
         response = requests.post(DEEPSEEK_URL, json=data, headers=headers)
         result = response.json()
-        
-        answer = result["choices"][0]["message"]["content"]
+
+        answer = extract_answer(result)
         return {"answer": answer}
 
     except Exception as e:
