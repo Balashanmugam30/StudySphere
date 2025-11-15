@@ -2,11 +2,11 @@ fastapi==0.110.0
 uvicorn[standard]==0.29.0
 python-dotenv==1.0.1
 
-# OpenAI new API (must be this version or above)
-openai>=1.14.0
+# Groq client
+groq>=0.5.0
 
 # CORS support
 starlette>=0.36.3
 
-# For HTTP requests (if needed)
+# HTTP requests (optional)
 requests>=2.31.0
