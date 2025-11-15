@@ -132,15 +132,43 @@ The optimized build will be in the `build/` directory.
 └── package.json            # Dependencies
 ```
 
-## Features Verification
+## HackFest Requirements Checklist
 
-✅ Left panel with PDF upload and Test Me button
-✅ Right panel with full chat interface
-✅ POST requests to Streamlit backend
-✅ Blue and white academic UI design
-✅ Poppins font from Google Fonts
-✅ Rounded cards and soft shadows
-✅ Smooth chat bubbles with animations
-✅ Error handling with friendly messages
-✅ No missing imports or build errors
-✅ Successful compilation
+### ✅ Mandatory Requirements
+- ✅ **Conversational AI**: Real-time chat with AI backend
+- ✅ **Agora Integration**: Agora RTC SDK for voice capture
+- ✅ **Voice Input**: Speech-to-text using Web Speech API
+- ✅ **Real-world Utility**: Study partner for students
+- ✅ **Working Prototype**: Fully functional web app
+
+### ✅ Technical Features
+- ✅ Left panel with PDF upload and Voice Mode button
+- ✅ Right panel with full chat interface
+- ✅ POST requests to Streamlit backend
+- ✅ Blue and white academic UI design
+- ✅ Poppins font from Google Fonts
+- ✅ Rounded cards and soft shadows
+- ✅ Smooth animations for voice and chat
+- ✅ Recording indicator with visual feedback
+- ✅ Error handling with friendly messages
+- ✅ Microphone permission handling
+- ✅ Voice/text message differentiation
+- ✅ "Powered by Agora Conversational AI" branding
+- ✅ No missing imports or build errors
+- ✅ Successful compilation
+
+## Voice Mode UI Elements
+
+### Visual Indicators
+- **Green Button**: "🎤 Voice Mode (Agora)" - Activate voice mode
+- **Red Button**: "Stop Voice Mode" - Deactivate voice mode
+- **Orange Button**: "Start Recording" - Begin voice capture
+- **Red Pulsing Box**: "Voice Recording..." - Active recording indicator
+- **Badge**: "Voice Active" in chat header when voice mode is on
+- **Voice Bubbles**: Messages with 🎤 icon for voice input
+
+### Animations
+- **Pulse Effect**: Recording indicator pulses during capture
+- **Blinking Dot**: Red dot blinks to show active recording
+- **Smooth Transitions**: Button hover effects with elevation
+- **Glow Effect**: Chat input has soft glow on hover
