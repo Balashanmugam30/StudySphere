@@ -14,10 +14,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# GROQ API CLIENT
+# GROQ CLIENT
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-MODEL = "llama3-8b-8192-fp16"   # <-- FIXED MODEL
+# WORKING MODEL
+MODEL = "mixtral-8x7b-32768"   # <-- FINAL model
 
 
 # -----------------------------
