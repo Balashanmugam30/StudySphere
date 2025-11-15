@@ -5,10 +5,10 @@ import os
 
 app = FastAPI(title="StudySphere Backend")
 
-# Enable CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Allow all for hackathon
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,10 +18,10 @@ app.add_middleware(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # -----------------------------
-# CHAT ROUTE
+# CHAT ROUTE  (Frontend calls /ask)
 # -----------------------------
-@app.post("/api/chat")
-async def chat(payload: dict):
+@app.post("/ask")
+async def ask_ai(payload: dict):
     question = payload.get("question", "")
 
     if not question:
@@ -40,19 +40,17 @@ async def chat(payload: dict):
 
 
 # -----------------------------
-# QUIZ ROUTE
+# QUIZ ROUTE (Frontend calls /quiz)
 # -----------------------------
-@app.post("/api/quiz")
-async def quiz(payload: dict = None):
+@app.post("/quiz")
+async def generate_quiz(payload: dict = None):
 
     prompt = """
     Generate exactly 3 multiple-choice questions (MCQs).
-    Each question must include:
-    - Question text
+    Each must include:
+    - Question
     - Options A, B, C, D
     - Correct answer
-
-    Format very clearly.
     """
 
     try:
