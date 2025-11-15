@@ -1,12 +1,5 @@
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
 python-dotenv==1.0.1
-
-# Groq client
-groq>=0.5.0
-
-# CORS support
 starlette>=0.36.3
-
-# HTTP requests (optional)
 requests>=2.31.0
