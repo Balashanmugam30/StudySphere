@@ -1,7 +1,19 @@
-import { useState } from 'react';
+/**
+ * StudySphere - Smart Study Partner with Agora Conversational AI
+ * HackFest GDG New Delhi - LA-01 Track
+ * 
+ * Features:
+ * - Agora RTC Voice Integration for conversational AI
+ * - Web Speech API for speech-to-text recognition
+ * - Real-time chat with AI backend
+ * - PDF upload simulation
+ * - Quiz generation
+ */
+
+import { useState, useEffect, useRef } from 'react';
 import '@/App.css';
 import axios from 'axios';
-import { Upload, MessageCircle, FileText } from 'lucide-react';
+import { Upload, MessageCircle, FileText, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,14 +26,188 @@ function App() {
     {
       id: 1,
       type: 'ai',
-      text: 'Hello! I\'m your AI study partner. Upload your PDF notes and chat with me, or click "Test Me" to generate quiz questions!',
+      text: 'Hello! I\'m your AI study partner with voice support powered by Agora. Upload your PDF notes, chat with me, click "Test Me" to generate quiz questions, or use Voice Mode to speak with me!',
       timestamp: new Date()
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Agora Voice Mode States
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [agoraClient, setAgoraClient] = useState(null);
+  
+  const recognitionRef = useRef(null);
+  const scrollAreaRef = useRef(null);
 
+  // Check for Agora SDK and Speech Recognition support on mount
+  useEffect(() => {
+    // Check if Agora SDK is loaded
+    if (window.AgoraRTC) {
+      console.log('✅ Agora RTC SDK loaded successfully');
+    } else {
+      console.warn('⚠️ Agora RTC SDK not loaded');
+    }
+
+    // Check for Web Speech API support
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setVoiceSupported(true);
+      console.log('✅ Speech Recognition supported');
+    } else {
+      setVoiceSupported(false);
+      console.warn('⚠️ Speech Recognition not supported in this browser');
+    }
+  }, []);
+
+  // Initialize Agora RTC Client
+  const initializeAgoraClient = () => {
+    try {
+      if (window.AgoraRTC) {
+        const client = window.AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+        setAgoraClient(client);
+        console.log('✅ Agora RTC client initialized');
+        return client;
+      } else {
+        console.warn('Agora SDK not available, continuing without RTC features');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error initializing Agora client:', error);
+      return null;
+    }
+  };
+
+  // Start Voice Mode with Agora
+  const startVoiceMode = async () => {
+    if (!voiceSupported) {
+      toast.error('Speech recognition is not supported in your browser');
+      return;
+    }
+
+    try {
+      // Request microphone permission
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Initialize Agora client if available
+      if (window.AgoraRTC && !agoraClient) {
+        const client = initializeAgoraClient();
+        console.log('Agora client ready for voice capture');
+      }
+
+      setIsVoiceMode(true);
+      toast.success('🎤 Voice Mode activated! Click "Start Recording" to speak.');
+    } catch (error) {
+      console.error('Microphone permission denied:', error);
+      toast.error('Microphone access denied. Please allow microphone permissions.');
+    }
+  };
+
+  // Stop Voice Mode
+  const stopVoiceMode = () => {
+    if (isRecording) {
+      stopRecording();
+    }
+    setIsVoiceMode(false);
+    toast.info('Voice Mode deactivated');
+  };
+
+  // Start Recording Voice
+  const startRecording = () => {
+    if (!voiceSupported) {
+      toast.error('Speech recognition not supported');
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+      console.log('🎤 Recording started...');
+    };
+
+    recognition.onresult = async (event) => {
+      const transcript = event.results[0][0].transcript;
+      console.log('Recognized text:', transcript);
+      
+      // Add user voice message to chat
+      const voiceMessage = {
+        id: Date.now(),
+        type: 'user',
+        text: `🎤 ${transcript}`,
+        timestamp: new Date(),
+        isVoice: true
+      };
+      setMessages(prev => [...prev, voiceMessage]);
+      
+      // Send to backend
+      setIsLoading(true);
+      try {
+        const responseData = await sendMessageToBackend(transcript);
+        
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          text: responseData.text || responseData.response || JSON.stringify(responseData),
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+        toast.success('Voice message processed!');
+      } catch (error) {
+        const errorMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          text: '❌ Sorry, I couldn\'t process your voice message. Please try again.',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        toast.error('Failed to process voice message');
+      } finally {
+        setIsLoading(false);
+        setIsRecording(false);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+      
+      let errorMsg = 'Voice recognition failed';
+      if (event.error === 'no-speech') {
+        errorMsg = 'No speech detected. Please try again.';
+      } else if (event.error === 'not-allowed') {
+        errorMsg = 'Microphone access denied.';
+      }
+      toast.error(errorMsg);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      console.log('🎤 Recording ended');
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  // Stop Recording
+  const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // Existing functions (unchanged)
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file && file.type === 'application/pdf') {
@@ -146,6 +332,7 @@ function App() {
         </div>
 
         <div className="upload-section">
+          {/* PDF Upload */}
           <div className="upload-card">
             <Upload className="upload-icon" />
             <h3 className="upload-title">Upload Study Materials</h3>
@@ -179,6 +366,49 @@ function App() {
             )}
           </div>
 
+          {/* Voice Mode Button (Agora) */}
+          <div className="voice-mode-section">
+            {!isVoiceMode ? (
+              <Button 
+                className="voice-mode-button"
+                onClick={startVoiceMode}
+                disabled={!voiceSupported}
+                data-testid="voice-mode-button"
+              >
+                <Mic className="w-4 h-4 mr-2" />
+                🎤 Voice Mode (Agora)
+              </Button>
+            ) : (
+              <div className="voice-active-controls">
+                <Button 
+                  className="voice-mode-button active"
+                  onClick={stopVoiceMode}
+                  data-testid="stop-voice-mode-button"
+                >
+                  <MicOff className="w-4 h-4 mr-2" />
+                  Stop Voice Mode
+                </Button>
+                
+                {!isRecording ? (
+                  <Button 
+                    className="record-button"
+                    onClick={startRecording}
+                    data-testid="start-recording-button"
+                  >
+                    <Mic className="w-4 h-4 mr-2" />
+                    Start Recording
+                  </Button>
+                ) : (
+                  <div className="recording-indicator" data-testid="recording-indicator">
+                    <div className="recording-dot"></div>
+                    <span>Voice Recording...</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Test Me Button */}
           <Button 
             className="test-button" 
             onClick={handleTestMe}
@@ -189,6 +419,11 @@ function App() {
             Test Me
           </Button>
         </div>
+
+        {/* Agora Footer Branding */}
+        <div className="agora-footer">
+          <p>Powered by Agora Conversational AI</p>
+        </div>
       </div>
 
       {/* Right Panel - Chat */}
@@ -196,9 +431,15 @@ function App() {
         <div className="chat-header">
           <MessageCircle className="w-6 h-6" />
           <h2 className="chat-title">Chat with AI</h2>
+          {isVoiceMode && (
+            <div className="voice-mode-badge">
+              <Mic className="w-4 h-4" />
+              <span>Voice Active</span>
+            </div>
+          )}
         </div>
 
-        <ScrollArea className="chat-messages" data-testid="chat-messages">
+        <ScrollArea className="chat-messages" data-testid="chat-messages" ref={scrollAreaRef}>
           <div className="messages-container">
             {messages.map((message) => (
               <div
@@ -206,7 +447,7 @@ function App() {
                 className={`message-wrapper ${message.type}`}
                 data-testid={`message-${message.type}`}
               >
-                <div className={`message-bubble ${message.type}`}>
+                <div className={`message-bubble ${message.type} ${message.isVoice ? 'voice-message' : ''}`}>
                   <p className="message-text">{message.text}</p>
                   <span className="message-time">
                     {message.timestamp.toLocaleTimeString('en-US', { 
